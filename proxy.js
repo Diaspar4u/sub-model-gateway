@@ -645,6 +645,8 @@ function stripEffortFromObject(str, objectKey) {
 const THINK_MASK_PREFIX = '__OBP_THINK_MASK_';
 const THINK_MASK_SUFFIX = '__';
 const THINK_BLOCK_PATTERNS = ['{"type":"thinking"', '{"type":"redacted_thinking"'];
+const OPAQUE_MASK_PREFIX = '__OBP_OPAQUE_MASK_';
+const OPAQUE_MASK_SUFFIX = '__';
 
 function maskThinkingBlocks(m) {
   const masks = [];
@@ -689,6 +691,83 @@ function maskThinkingBlocks(m) {
 function unmaskThinkingBlocks(m, masks) {
   for (let i = 0; i < masks.length; i++) {
     m = m.split(THINK_MASK_PREFIX + i + THINK_MASK_SUFFIX).join(masks[i]);
+  }
+  return m;
+}
+
+function isLikelyBase64Payload(value, minLength = 256) {
+  if (typeof value !== 'string' || value.length < minLength) return false;
+  if (value.length % 4 !== 0) return false;
+  return /^[A-Za-z0-9+/]+={0,2}$/.test(value);
+}
+
+function shouldMaskOpaqueValue(pattern, rawValue, prefixContext = '') {
+  if (pattern === '"url":"data:') {
+    const comma = rawValue.indexOf(',');
+    if (comma === -1) return false;
+    return rawValue.slice(0, comma).includes(';base64')
+      && isLikelyBase64Payload(rawValue.slice(comma + 1), 4);
+  }
+  if (pattern === '"base64":"') {
+    return isLikelyBase64Payload(rawValue, 4);
+  }
+  if (prefixContext.includes('"type":"base64"') || prefixContext.includes('"media_type":"image/')) {
+    return isLikelyBase64Payload(rawValue, 4);
+  }
+  return isLikelyBase64Payload(rawValue);
+}
+
+function maskOpaquePayloads(m) {
+  const masks = [];
+  const patterns = ['"data":"', '"base64":"', '"url":"data:'];
+  let out = '';
+  let i = 0;
+
+  while (i < m.length) {
+    let nextIdx = -1;
+    let nextPattern = '';
+    for (const pattern of patterns) {
+      const idx = m.indexOf(pattern, i);
+      if (idx !== -1 && (nextIdx === -1 || idx < nextIdx)) {
+        nextIdx = idx;
+        nextPattern = pattern;
+      }
+    }
+
+    if (nextIdx === -1) { out += m.slice(i); break; }
+
+    const valueStart = nextIdx + nextPattern.length;
+    let j = valueStart;
+    while (j < m.length) {
+      if (m[j] === '\\') { j += 2; continue; }
+      if (m[j] === '"') break;
+      j++;
+    }
+
+    if (j >= m.length) {
+      out += m.slice(i);
+      break;
+    }
+
+    const rawValue = m.slice(valueStart, j);
+    const prefixContext = m.slice(Math.max(0, nextIdx - 160), nextIdx);
+    if (!shouldMaskOpaqueValue(nextPattern, rawValue, prefixContext)) {
+      out += m.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+
+    masks.push(rawValue);
+    out += m.slice(i, valueStart) + OPAQUE_MASK_PREFIX + (masks.length - 1) + OPAQUE_MASK_SUFFIX;
+    i = j;
+  }
+
+  return { masked: out, masks };
+}
+
+function unmaskOpaquePayloads(m, masks) {
+  for (let i = 0; i < masks.length; i++) {
+    m = m.split(OPAQUE_MASK_PREFIX + i + OPAQUE_MASK_SUFFIX).join(masks[i]);
   }
   return m;
 }
@@ -805,7 +884,8 @@ function processBody(bodyStr, config) {
   // so Layer 2/3/6 split/join can't mutate assistant history. Restored before
   // return. See "Thinking Block Protection" above.
   const { masked: maskedBody, masks: thinkMasks } = maskThinkingBlocks(bodyStr);
-  let m = maskedBody;
+  const { masked: opaqueMaskedBody, masks: opaqueMasks } = maskOpaquePayloads(maskedBody);
+  let m = opaqueMaskedBody;
 
   // Layer 2: String trigger sanitization (global split/join)
   for (const [find, replace] of config.replacements) {
@@ -1061,7 +1141,7 @@ function processBody(bodyStr, config) {
     }
   }
 
-  return unmaskThinkingBlocks(m, thinkMasks);
+  return unmaskThinkingBlocks(unmaskOpaquePayloads(m, opaqueMasks), thinkMasks);
 }
 
 // ─── Response Processing ────────────────────────────────────────────────────
