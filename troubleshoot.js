@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Troubleshoot script for OpenClaw Billing Proxy
+ * Troubleshoot script for Sub Model Gateway
  *
- * Runs diagnostic checks to identify why the proxy isn't working.
+ * Runs diagnostic checks to identify why the gateway isn't working.
  * Tests each layer independently: credentials, token, billing header,
  * sanitization, and full request.
  *

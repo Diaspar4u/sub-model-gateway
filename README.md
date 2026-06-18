@@ -1,12 +1,12 @@
-# OpenClaw Subscription Billing Proxy
+# Sub Model Gateway
 
-Route your OpenClaw API requests through your Claude Max/Pro subscription instead of Extra Usage billing.
+Route compatible local runtime API requests through your Claude Max/Pro subscription path instead of Extra Usage billing.
 
 ## What This Does
 
-After Anthropic revoked subscription billing for third-party tools (April 4, 2026), OpenClaw requests are billed to Extra Usage. This proxy sits between OpenClaw and the Anthropic API, injecting Claude Code's billing identifier so requests use your existing subscription.
+After Anthropic revoked subscription billing for third-party tools (April 4, 2026), some local runtimes are billed to Extra Usage. This gateway sits between a runtime and the Anthropic API, injecting Claude Code's billing identifier so requests use your existing subscription.
 
-**Zero cost increase. Full OpenClaw functionality. No code changes to OpenClaw.**
+**Zero cost increase. No code changes to the client runtime.**
 
 ## How It Works
 
@@ -15,23 +15,23 @@ The proxy performs 7-layer bidirectional request/response processing to defeat A
 **Outbound (request to API):**
 1. **Billing Header** -- Injects an 84-character Claude Code billing identifier into the system prompt
 2. **Token Swap** -- Replaces OpenClaw's auth token with your Claude Code OAuth token
-3. **String Sanitization** -- Replaces 30 trigger phrases (OpenClaw, sessions_*, HEARTBEAT, etc.)
-4. **Tool Name Bypass** -- Renames all 29 OpenClaw tool names to PascalCase Claude Code convention (e.g., `exec` -> `Bash`, `lcm_grep` -> `ContextGrep`) throughout the entire body
+3. **String Sanitization** -- Replaces runtime-specific trigger phrases
+4. **Tool Name Bypass** -- Renames runtime tool names to Claude Code-style conventions throughout the entire body
 5. **System Template Bypass** -- Strips ~28K of structured config sections and replaces with a ~0.5K natural prose paraphrase
 6. **Tool Description Stripping** -- Removes tool descriptions to reduce fingerprint signal
-7. **Property Renaming** -- Renames OC-specific schema properties (e.g., `session_id` -> `thread_id`)
+7. **Property Renaming** -- Renames runtime-specific schema properties (e.g., `session_id` -> `thread_id`)
 
-**Inbound (response to OpenClaw):**
+**Inbound (response to runtime):**
 8. **Full Reverse Mapping** -- Restores ALL original tool names, property names, file paths, and identifiers in both SSE streaming chunks and JSON responses
 
-This ensures Anthropic sees what looks like a Claude Code session while OpenClaw sees its original tool names, paths, and identifiers.
+This ensures Anthropic sees what looks like a Claude Code session while the client runtime sees its original tool names, paths, and identifiers.
 
 ## Requirements
 
 - **Node.js** 18+
 - **Claude Max or Pro subscription**
 - **Claude Code CLI** installed and authenticated
-- **OpenClaw** installed and running
+- A compatible local runtime installed and running
 
 ### Installing Claude Code CLI (if not already installed)
 
@@ -58,8 +58,8 @@ claude auth status
 
 ```bash
 # 1. Clone
-git clone https://github.com/zacdcook/openclaw-billing-proxy
-cd openclaw-billing-proxy
+git clone https://github.com/Diaspar4u/sub-model-gateway
+cd sub-model-gateway
 
 # 2. Run setup (auto-detects your config)
 node setup.js
@@ -67,14 +67,14 @@ node setup.js
 # 3. Start the proxy
 node proxy.js
 
-# 4. Update OpenClaw config (see "OpenClaw Configuration" below)
+# 4. Update your runtime config (see "Client Configuration" below)
 
-# 5. Restart your OpenClaw gateway
+# 5. Restart your runtime
 ```
 
-## OpenClaw Configuration
+## Client Configuration
 
-Add or update the `models.providers.anthropic` section in `~/.openclaw/openclaw.json` to point at the proxy:
+Set the runtime's Anthropic-compatible `baseUrl` to point at the gateway. For legacy OpenClaw-style configuration, add or update `models.providers.anthropic` in `~/.openclaw/openclaw.json`:
 
 ```json
 {
@@ -89,7 +89,7 @@ Add or update the `models.providers.anthropic` section in `~/.openclaw/openclaw.
 ```
 
 **Important notes:**
-- The `baseUrl` field is the ONLY mechanism that routes OpenClaw traffic through the proxy. Environment variables like `ANTHROPIC_BASE_URL` do NOT control OpenClaw's routing.
+- The `baseUrl` field is the routing mechanism for supported runtimes. Environment variables like `ANTHROPIC_BASE_URL` do not control every runtime's provider routing.
 - If you have a direct Anthropic API key in your auth profiles (`~/.openclaw/agents/*/agent/auth-profiles.json`), OpenClaw may prefer that over OAuth and bypass the proxy entirely. Remove or disable the API key auth profile to ensure all traffic goes through the proxy.
 - After updating, restart your OpenClaw gateway for the changes to take effect.
 - Run `node troubleshoot.js` to verify the proxy is working AND that OpenClaw is pointed at it.
@@ -181,7 +181,7 @@ PROXY_PORT=9000 docker compose up -d
 
 **Custom replacement rules:**
 
-Uncomment the `config.json` volume mount in `docker-compose.yml`, then create a `config.json` (copy from `config.example.json` and edit).
+Uncomment the `config.json` volume mount in `docker-compose.yml`, then create a `config.json` (copy from `config.example.json` or `config.runtime.example.json` and edit).
 
 See `.env.example` for all available environment variables.
 
@@ -189,9 +189,9 @@ See `.env.example` for all available environment variables.
 
 ### Linux (systemd)
 ```bash
-sudo tee /etc/systemd/system/openclaw-proxy.service << EOF
+sudo tee /etc/systemd/system/sub-model-gateway.service << EOF
 [Unit]
-Description=OpenClaw Billing Proxy
+Description=Sub Model Gateway
 After=network.target
 
 [Service]
@@ -203,20 +203,20 @@ User=YOUR_USER
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl enable openclaw-proxy
-sudo systemctl start openclaw-proxy
+sudo systemctl enable sub-model-gateway
+sudo systemctl start sub-model-gateway
 ```
 
 ### Windows (startup)
 Add to your `gateway.cmd` before the gateway launch:
 ```cmd
-start "Billing Proxy" /min node "C:\path\to\proxy.js"
+start "Sub Model Gateway" /min node "C:\path\to\proxy.js"
 timeout /t 2 /nobreak >nul
 ```
 
 ### PM2
 ```bash
-pm2 start proxy.js --name openclaw-proxy
+pm2 start proxy.js --name sub-model-gateway
 pm2 save
 ```
 

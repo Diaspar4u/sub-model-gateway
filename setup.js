@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Setup script for OpenClaw Billing Proxy
+ * Setup script for Sub Model Gateway
  *
  * Auto-detects OpenClaw configuration, scans for sessions_* tools,
  * and generates sanitization + reverse mapping rules.
@@ -18,8 +18,8 @@ const DEFAULT_TOOL_RENAMES_COUNT = 28;
 
 const homeDir = os.homedir();
 
-console.log('\n  OpenClaw Billing Proxy Setup');
-console.log('  ---------------------------\n');
+console.log('\n  Sub Model Gateway Setup');
+console.log('  -----------------------\n');
 
 // Step 1: Check Claude Code auth
 console.log('1. Checking Claude Code authentication...');
@@ -344,9 +344,9 @@ console.log('   Custom patterns can be added to config.json and will be merged w
 console.log('\n5. Setup complete!\n');
 console.log('   Next steps:');
 console.log('   -----------');
-console.log('   a) Start the proxy:     node proxy.js');
-console.log('   b) Update OpenClaw:     Set baseUrl to http://127.0.0.1:' + config.port + ' in openclaw.json');
-console.log('   c) Restart gateway:     Restart your OpenClaw gateway');
+console.log('   a) Start the gateway:   node proxy.js');
+console.log('   b) Update client:       Set its baseUrl to http://127.0.0.1:' + config.port);
+console.log('   c) Restart runtime:     Restart the client runtime');
 console.log('   d) Test:                Send your assistant a message\n');
 
 if (oclawPath) {
@@ -360,6 +360,6 @@ if (oclawPath) {
 
 console.log('\n   Troubleshooting:');
 console.log('   - If requests fail with "extra usage" errors, check proxy console for 400 status codes');
-console.log('   - Add any new sessions_* tools to both replacements and reverseMap in config.json');
-console.log('   - If your assistant name is blocked (rare), add it to replacements and reverseMap');
+console.log('   - Add any runtime-specific tools to both replacements and reverseMap in config.json');
+console.log('   - If your runtime name is blocked, add it to replacements and reverseMap');
 console.log('   - Token refreshes when you open Claude Code CLI -- do this every 24h\n');

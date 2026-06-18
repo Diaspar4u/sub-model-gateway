@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * OpenClaw Subscription Billing Proxy v2.0
+ * Sub Model Gateway v2.0
  *
- * Routes OpenClaw API requests through Claude Code's subscription billing
- * instead of Extra Usage. Defeats Anthropic's multi-layer detection:
+ * Routes compatible local runtime API requests through Claude Code's
+ * subscription path instead of Extra Usage. Defeats Anthropic's multi-layer
+ * detection:
  *
  *   Layer 1: Billing header injection (84-char Claude Code identifier)
- *   Layer 2: String trigger sanitization (OpenClaw, sessions_*, running inside, etc.)
- *   Layer 3: Tool name fingerprint bypass (rename OC tools to CC PascalCase convention)
+ *   Layer 2: String trigger sanitization (runtime names, tools, running inside, etc.)
+ *   Layer 3: Tool name fingerprint bypass (rename runtime tools to CC-style names)
  *   Layer 4: System prompt template bypass (strip config section, replace with paraphrase)
  *   Layer 5: Tool description stripping (reduce fingerprint signal in tool schemas)
  *   Layer 6: Property name renaming (eliminate OC-specific schema property names)
@@ -1182,7 +1183,7 @@ function startServer(config) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           status: expiresIn > 0 ? 'ok' : 'token_expired',
-          proxy: 'openclaw-billing-proxy',
+          proxy: 'sub-model-gateway',
           version: VERSION,
           requestsServed: requestCount,
           uptime: Math.floor((Date.now() - startedAt) / 1000) + 's',
@@ -1389,7 +1390,7 @@ function startServer(config) {
       const oauth = getToken(config.credsPath);
       const expiresIn = (oauth.expiresAt - Date.now()) / 3600000;
       const h = isFinite(expiresIn) ? expiresIn.toFixed(1) + 'h' : 'n/a (env var)';
-      console.log(`\n  OpenClaw Billing Proxy v${VERSION}`);
+      console.log(`\n  Sub Model Gateway v${VERSION}`);
       console.log(`  ─────────────────────────────`);
       console.log(`  Port:              ${config.port}`);
       console.log(`  Bind address:      ${bindHost}`);
@@ -1405,7 +1406,7 @@ function startServer(config) {
       console.log(`  Billing hash:      dynamic (SHA256 fingerprint)`);
       console.log(`  CC headers:        Stainless SDK + identity`);
       console.log(`  Credentials:       ${config.credsPath}`);
-      console.log(`\n  Ready. Set openclaw.json baseUrl to http://${bindHost}:${config.port}\n`);
+      console.log(`\n  Ready. Set your client baseUrl to http://${bindHost}:${config.port}\n`);
     } catch (e) {
       console.error(`  Started on port ${config.port} but credentials error: ${e.message}`);
     }
