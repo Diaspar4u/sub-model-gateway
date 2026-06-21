@@ -221,6 +221,20 @@ test('error response mapping restores runtime names', () => {
   assert.strictEqual(parsed.error.tool.input.session_id, 'thread-1');
 });
 
+test('processBody defaults to all built-in keyword sets', () => {
+  const result = processBody(JSON.stringify({
+    model: 'claude-sonnet-4-6',
+    system: 'OpenClaw and Hermes are active runtimes.',
+    messages: [{ role: 'user', content: 'Use OpenClaw and Hermes' }]
+  }), {}, {
+    identity: { deviceId: 'd', sessionId: 's' },
+    logger
+  });
+
+  assert.ok(result.includes('OCPlatform'));
+  assert.ok(result.includes('AssistantRuntime'));
+});
+
 test('processBody supports explicit Hermes Agent compatibility set', () => {
   const result = processBody(JSON.stringify({
     model: 'claude-sonnet-4-6',

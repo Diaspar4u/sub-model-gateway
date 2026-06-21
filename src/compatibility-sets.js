@@ -37,6 +37,10 @@ function listCompatibilitySets() {
   return Object.keys(COMPATIBILITY_SETS);
 }
 
+function defaultCompatibilitySets() {
+  return listCompatibilitySets();
+}
+
 function assertKnownCompatibilitySets(names) {
   for (const name of names) {
     if (!COMPATIBILITY_SETS[name]) {
@@ -56,7 +60,7 @@ function mergePatternArrays(arrays) {
 }
 
 function resolveCompatibilitySets(names) {
-  const setNames = names || ['openclaw'];
+  const setNames = names === undefined ? defaultCompatibilitySets() : names;
   assertKnownCompatibilitySets(setNames);
   const sets = setNames.map((name) => COMPATIBILITY_SETS[name]);
   const options = {};
@@ -76,6 +80,7 @@ function resolveCompatibilitySets(names) {
 module.exports = {
   COMPATIBILITY_SETS,
   listCompatibilitySets,
+  defaultCompatibilitySets,
   assertKnownCompatibilitySets,
   mergePatternArrays,
   resolveCompatibilitySets

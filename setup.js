@@ -23,7 +23,7 @@ const {
   getRuntimeBaseUrl,
   writeCredentialsFile
 } = require('./src/setup-helpers');
-const { listCompatibilitySets } = require('./src/compatibility-sets');
+const { defaultCompatibilitySets, listCompatibilitySets } = require('./src/compatibility-sets');
 
 function parseCompatibilitySets(argv) {
   const sets = [];
@@ -38,7 +38,7 @@ function parseCompatibilitySets(argv) {
       return [];
     }
   }
-  return sets.length > 0 ? sets : ['openclaw'];
+  return sets.length > 0 ? sets : defaultCompatibilitySets();
 }
 
 function findDistPaths(runtimePath, homeDir) {
@@ -302,7 +302,7 @@ function main() {
   console.log('   Profile: ' + profile);
   console.log('   Compatibility sets: ' + (compatibilitySets.length ? compatibilitySets.join(', ') : 'none'));
   console.log('   Credentials: ' + credentialsPath);
-  console.log('   Default sanitization: ' + counts.replacements + ' string + ' + counts.toolRenames + ' tool renames (from src/constants.js)');
+  console.log('   Default sanitization: ' + counts.replacements + ' string + ' + counts.toolRenames + ' tool renames (from enabled compatibility sets)');
   console.log('   Custom patterns can be added at the root or under profiles.' + profile + '.');
   console.log('   Available compatibility sets: ' + listCompatibilitySets().join(', '));
 

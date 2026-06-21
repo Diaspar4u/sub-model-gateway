@@ -7,7 +7,7 @@ const {
   DEFAULT_PORT,
   UPSTREAM_HOST
 } = require('./constants');
-const { resolveCompatibilitySets } = require('./compatibility-sets');
+const { defaultCompatibilitySets, resolveCompatibilitySets } = require('./compatibility-sets');
 
 function expandHome(p, homeDir = os.homedir()) {
   if (!p || typeof p !== 'string') return p;
@@ -56,7 +56,7 @@ function normalizePatterns(config) {
   const hasExplicitSets = Array.isArray(config.compatibilitySets);
   const setNames = hasExplicitSets
     ? (config.compatibilitySets || [])
-    : (useDefaults ? ['openclaw'] : []);
+    : (useDefaults ? defaultCompatibilitySets() : []);
   const setPatterns = resolveCompatibilitySets(setNames);
   const useSetPatterns = useDefaults || hasExplicitSets;
   const base = useSetPatterns
@@ -65,7 +65,7 @@ function normalizePatterns(config) {
 
   return {
     compatibilitySets: setPatterns.names,
-    compatibilitySetOptions: setPatterns.options,
+    compatibilitySetOptions: hasExplicitSets ? setPatterns.options : {},
     replacements: useSetPatterns
       ? mergePatterns(base.replacements, config.replacements)
       : (config.replacements || []),

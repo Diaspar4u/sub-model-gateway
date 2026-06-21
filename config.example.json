@@ -2,7 +2,7 @@
   "port": 18801,
   "profile": "runtime",
   "credentialsPath": "~/.claude/.credentials.json",
-  "compatibilitySets": ["openclaw"],
+  "compatibilitySets": ["openclaw", "hermes"],
   "routing": {
     "type": "profile"
   },

@@ -6,9 +6,8 @@ const path = require('path');
 const { execSync: defaultExecSync } = require('child_process');
 const {
   DEFAULT_PORT,
-  DEFAULT_REPLACEMENTS,
-  DEFAULT_TOOL_RENAMES
 } = require('./constants');
+const { defaultCompatibilitySets, resolveCompatibilitySets } = require('./compatibility-sets');
 const { stripBom } = require('./token-store');
 
 const KEYCHAIN_SERVICE_NAMES = [
@@ -178,7 +177,7 @@ function findClaudeCredentials(options = {}) {
 function buildSetupConfig(options = {}) {
   const profile = options.profile || 'runtime';
   const credentialsPath = options.credentialsPath || '~/.claude/.credentials.json';
-  const compatibilitySets = options.compatibilitySets || ['openclaw'];
+  const compatibilitySets = options.compatibilitySets || defaultCompatibilitySets();
   return {
     port: options.port || DEFAULT_PORT,
     profile,
@@ -192,7 +191,7 @@ function buildSetupConfig(options = {}) {
     },
     _comment: 'Root fields are defaults for profiles. Add profiles.<name>.credentialsPath and routing.type=\"clientToken\" for multiple subscriptions.',
     _comment_sets: 'Set compatibilitySets to [\"openclaw\"], [\"hermes\"], both, or [] to control runtime compatibility rules.',
-    _comment_patterns: 'Pattern arrays use src/constants.js defaults. Add custom replacements/reverseMap/toolRenames/propRenames at the root or profile level and they will be merged with defaults.'
+    _comment_patterns: 'Pattern arrays use compatibility set defaults. Add custom replacements/reverseMap/toolRenames/propRenames at the root or profile level and they will be merged with defaults.'
   };
 }
 
@@ -213,9 +212,10 @@ function getRuntimeBaseUrl(config) {
 }
 
 function defaultPatternCounts() {
+  const defaults = resolveCompatibilitySets();
   return {
-    replacements: DEFAULT_REPLACEMENTS.length,
-    toolRenames: DEFAULT_TOOL_RENAMES.length
+    replacements: defaults.replacements.length,
+    toolRenames: defaults.toolRenames.length
   };
 }
 

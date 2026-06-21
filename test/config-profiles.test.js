@@ -84,6 +84,20 @@ test('profile credentialsPath overrides legacy OAUTH_TOKEN root default', () => 
   assert.strictEqual(config.profiles.envProfile.tokenEnv, 'OAUTH_TOKEN');
 });
 
+test('loadConfig defaults to all built-in keyword sets', () => {
+  const dir = tempConfig({});
+  const config = loadConfig({
+    cwd: dir,
+    homeDir: '/home/tester',
+    env: { OAUTH_TOKEN: 'sk-env' }
+  });
+
+  assert.deepStrictEqual(config.activeProfile.compatibilitySets, ['openclaw', 'hermes']);
+  assert.ok(config.activeProfile.replacements.some(([from]) => from === 'OpenClaw'));
+  assert.ok(config.activeProfile.replacements.some(([from]) => from === 'Hermes'));
+  assert.strictEqual(config.activeProfile.stripSystemConfig, true);
+});
+
 test('compatibilitySets can select Hermes Agent rules per profile', () => {
   const dir = tempConfig({
     profile: 'hermes',

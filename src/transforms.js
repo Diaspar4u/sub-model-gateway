@@ -7,10 +7,6 @@ const {
   BILLING_HASH_SALT,
   CC_TOOL_STUBS,
   CC_VERSION,
-  DEFAULT_PROP_RENAMES,
-  DEFAULT_REPLACEMENTS,
-  DEFAULT_REVERSE_MAP,
-  DEFAULT_TOOL_RENAMES,
   REQUIRED_BETAS
 } = require('./constants');
 const { resolveCompatibilitySets } = require('./compatibility-sets');
@@ -26,12 +22,7 @@ function normalizeTransformConfig(config) {
   const hasExplicitSets = Array.isArray(config.compatibilitySets);
   const setPatterns = hasExplicitSets
     ? resolveCompatibilitySets(config.compatibilitySets || [])
-    : {
-        replacements: DEFAULT_REPLACEMENTS,
-        reverseMap: DEFAULT_REVERSE_MAP,
-        toolRenames: DEFAULT_TOOL_RENAMES,
-        propRenames: DEFAULT_PROP_RENAMES
-      };
+    : resolveCompatibilitySets();
   return {
     ...config,
     replacements: config.replacements || setPatterns.replacements,

@@ -10,6 +10,8 @@ Built-in sets:
 - `openclaw`: original OpenClaw request/response compatibility rules.
 - `hermes`: Hermes Agent rules added after the original OpenClaw set.
 
+The default is all built-in keyword sets: `["openclaw", "hermes"]`.
+
 Profiles select sets with `compatibilitySets`:
 
 ```json
