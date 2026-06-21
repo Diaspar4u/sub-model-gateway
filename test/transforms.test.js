@@ -221,6 +221,26 @@ test('error response mapping restores runtime names', () => {
   assert.strictEqual(parsed.error.tool.input.session_id, 'thread-1');
 });
 
+test('processBody supports explicit Hermes Agent compatibility set', () => {
+  const result = processBody(JSON.stringify({
+    model: 'claude-sonnet-4-6',
+    system: 'Hermes can use delegate_task and mcp_delegate_task.',
+    tools: [{ name: 'mcp_delegate_task', description: 'Run Hermes subagent' }],
+    messages: [{ role: 'user', content: 'Ask Hermes to delegate_task' }]
+  }), {
+    compatibilitySets: ['hermes-agent'],
+    stripToolDescriptions: false
+  }, {
+    identity: { deviceId: 'd', sessionId: 's' },
+    logger
+  });
+
+  assert.ok(result.includes('AssistantRuntime'));
+  assert.ok(result.includes('run_worker'));
+  assert.ok(result.includes('"name":"mcp_WorkerRun"'));
+  assert.ok(!result.includes('OpenClaw'));
+});
+
 test('stripEffortFromObject handles empty object removal', () => {
   assert.strictEqual(
     stripEffortFromObject('{"thinking":{"effort":"low"},"keep":true}', 'thinking'),

@@ -5,12 +5,9 @@ const os = require('os');
 const path = require('path');
 const {
   DEFAULT_PORT,
-  DEFAULT_PROP_RENAMES,
-  DEFAULT_REPLACEMENTS,
-  DEFAULT_REVERSE_MAP,
-  DEFAULT_TOOL_RENAMES,
   UPSTREAM_HOST
 } = require('./constants');
+const { resolveCompatibilitySets } = require('./compatibility-sets');
 
 function expandHome(p, homeDir = os.homedir()) {
   if (!p || typeof p !== 'string') return p;
@@ -56,19 +53,31 @@ function mergePatterns(defaults, overrides) {
 
 function normalizePatterns(config) {
   const useDefaults = config.mergeDefaults !== false;
+  const hasExplicitSets = Array.isArray(config.compatibilitySets);
+  const setNames = hasExplicitSets
+    ? (config.compatibilitySets || [])
+    : (useDefaults ? ['openclaw'] : []);
+  const setPatterns = resolveCompatibilitySets(setNames);
+  const useSetPatterns = useDefaults || hasExplicitSets;
+  const base = useSetPatterns
+    ? setPatterns
+    : { replacements: [], reverseMap: [], toolRenames: [], propRenames: [] };
+
   return {
-    replacements: useDefaults
-      ? mergePatterns(DEFAULT_REPLACEMENTS, config.replacements)
-      : (config.replacements || DEFAULT_REPLACEMENTS),
-    reverseMap: useDefaults
-      ? mergePatterns(DEFAULT_REVERSE_MAP, config.reverseMap)
-      : (config.reverseMap || DEFAULT_REVERSE_MAP),
-    toolRenames: useDefaults
-      ? mergePatterns(DEFAULT_TOOL_RENAMES, config.toolRenames)
-      : (config.toolRenames || DEFAULT_TOOL_RENAMES),
-    propRenames: useDefaults
-      ? mergePatterns(DEFAULT_PROP_RENAMES, config.propRenames)
-      : (config.propRenames || DEFAULT_PROP_RENAMES)
+    compatibilitySets: setPatterns.names,
+    compatibilitySetOptions: setPatterns.options,
+    replacements: useSetPatterns
+      ? mergePatterns(base.replacements, config.replacements)
+      : (config.replacements || []),
+    reverseMap: useSetPatterns
+      ? mergePatterns(base.reverseMap, config.reverseMap)
+      : (config.reverseMap || []),
+    toolRenames: useSetPatterns
+      ? mergePatterns(base.toolRenames, config.toolRenames)
+      : (config.toolRenames || []),
+    propRenames: useSetPatterns
+      ? mergePatterns(base.propRenames, config.propRenames)
+      : (config.propRenames || [])
   };
 }
 
@@ -99,6 +108,7 @@ function normalizeProfiles(config, selectedProfile, env = process.env, homeDir =
     stripToolDescriptions: config.stripToolDescriptions,
     injectCCStubs: config.injectCCStubs,
     stripTrailingAssistantPrefill: config.stripTrailingAssistantPrefill,
+    compatibilitySets: config.compatibilitySets,
     mergeDefaults: config.mergeDefaults,
     replacements: config.replacements,
     reverseMap: config.reverseMap,
@@ -121,11 +131,15 @@ function normalizeProfiles(config, selectedProfile, env = process.env, homeDir =
       merged.tokenEnv = undefined;
     }
     const patterns = normalizePatterns(merged);
+    const stripSystemConfig = merged.stripSystemConfig !== undefined
+      ? merged.stripSystemConfig !== false
+      : patterns.compatibilitySetOptions.stripSystemConfig !== false;
     profiles[id] = {
       id,
       credentialsPath: merged.credentialsPath ? expandHome(merged.credentialsPath, homeDir) : null,
       tokenEnv: merged.tokenEnv,
-      stripSystemConfig: merged.stripSystemConfig !== false,
+      compatibilitySets: patterns.compatibilitySets,
+      stripSystemConfig,
       stripToolDescriptions: merged.stripToolDescriptions !== false,
       injectCCStubs: merged.injectCCStubs === true,
       stripTrailingAssistantPrefill: merged.stripTrailingAssistantPrefill !== false,

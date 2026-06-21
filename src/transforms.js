@@ -13,6 +13,7 @@ const {
   DEFAULT_TOOL_RENAMES,
   REQUIRED_BETAS
 } = require('./constants');
+const { resolveCompatibilitySets } = require('./compatibility-sets');
 
 function createRuntimeIdentity() {
   return {
@@ -22,12 +23,21 @@ function createRuntimeIdentity() {
 }
 
 function normalizeTransformConfig(config) {
+  const hasExplicitSets = Array.isArray(config.compatibilitySets);
+  const setPatterns = hasExplicitSets
+    ? resolveCompatibilitySets(config.compatibilitySets || [])
+    : {
+        replacements: DEFAULT_REPLACEMENTS,
+        reverseMap: DEFAULT_REVERSE_MAP,
+        toolRenames: DEFAULT_TOOL_RENAMES,
+        propRenames: DEFAULT_PROP_RENAMES
+      };
   return {
     ...config,
-    replacements: config.replacements || DEFAULT_REPLACEMENTS,
-    reverseMap: config.reverseMap || DEFAULT_REVERSE_MAP,
-    toolRenames: config.toolRenames || DEFAULT_TOOL_RENAMES,
-    propRenames: config.propRenames || DEFAULT_PROP_RENAMES,
+    replacements: config.replacements || setPatterns.replacements,
+    reverseMap: config.reverseMap || setPatterns.reverseMap,
+    toolRenames: config.toolRenames || setPatterns.toolRenames,
+    propRenames: config.propRenames || setPatterns.propRenames,
     stripSystemConfig: config.stripSystemConfig !== false,
     stripToolDescriptions: config.stripToolDescriptions !== false,
     injectCCStubs: config.injectCCStubs === true,

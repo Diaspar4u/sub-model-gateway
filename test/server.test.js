@@ -1,7 +1,10 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
 const http = require('http');
+const os = require('os');
+const path = require('path');
 const test = require('node:test');
 const { loadConfig } = require('../src/config');
 const { createGatewayServer } = require('../src/server');
@@ -81,8 +84,9 @@ test('gateway forwards through selected profile and reverse-maps error responses
   });
 
   const upstreamPort = await listen(upstream);
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'smg-server-'));
   const config = loadConfig({
-    cwd: process.cwd(),
+    cwd,
     env: { OAUTH_TOKEN: 'sk-profile-token' }
   });
   config.upstream = {

@@ -1,179 +1,134 @@
 #!/usr/bin/env node
+'use strict';
+
 /**
  * Troubleshoot script for Sub Model Gateway
  *
  * Runs diagnostic checks to identify why the gateway isn't working.
  * Tests each layer independently: credentials, token, billing header,
- * sanitization, and full request.
+ * sanitization, proxy health, end-to-end proxy routing, and client config.
  *
- * Usage: node troubleshoot.js
+ * Usage:
+ *   node troubleshoot.js [--profile runtime] [--config config.json]
  */
 
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const http = require('http');
+const { loadConfig } = require('./src/config');
+const { createReporter, checkSelectedProfileToken, apiTest, requestProxyHealth, requestProxyMessage } = require('./src/troubleshoot-helpers');
 
 const homeDir = os.homedir();
-let passed = 0;
-let failed = 0;
+const reporter = createReporter(console);
+const { ok, fail, info, state } = reporter;
 
-function ok(name, detail) {
-  passed++;
-  console.log('  [PASS] ' + name + (detail ? ' -- ' + detail : ''));
+function parseJsonFile(filePath) {
+  const raw = fs.readFileSync(filePath, 'utf8');
+  return JSON.parse(raw.charCodeAt(0) === 0xFEFF ? raw.slice(1) : raw);
 }
 
-function fail(name, detail) {
-  failed++;
-  console.log('  [FAIL] ' + name + (detail ? ' -- ' + detail : ''));
+function nestedBaseUrl(config) {
+  return config.models &&
+    config.models.providers &&
+    config.models.providers.anthropic &&
+    config.models.providers.anthropic.baseUrl;
 }
 
-function info(msg) {
-  console.log('  [INFO] ' + msg);
+function directBaseUrl(config) {
+  return config.baseUrl ||
+    config.anthropicBaseUrl ||
+    nestedBaseUrl(config);
 }
 
-// ─── Step 1: Find credentials ───────────────────────────────────────────────
-console.log('\n1. Checking Claude Code credentials...\n');
-
-const credsPaths = [
-  path.join(homeDir, '.claude', '.credentials.json'),
-  path.join(homeDir, '.claude', 'credentials.json')
-];
-
-let credsPath = null;
-let creds = null;
-
-for (const p of credsPaths) {
-  if (fs.existsSync(p)) {
-    const stat = fs.statSync(p);
-    if (stat.size === 0) {
-      fail('Credentials file exists but is EMPTY: ' + p);
-      info('Run: claude auth logout && claude auth login');
-      continue;
-    }
+function checkBaseUrl(runtimeName, configPaths, targetPort, exactDefaultPortMessage) {
+  let found = false;
+  for (const configPath of configPaths.filter(Boolean)) {
+    if (!fs.existsSync(configPath)) continue;
+    found = true;
     try {
-      const raw = fs.readFileSync(p, 'utf8');
-      const parsed = JSON.parse(raw);
-      if (parsed.claudeAiOauth && parsed.claudeAiOauth.accessToken) {
-        credsPath = p;
-        creds = parsed;
-        ok('Credentials found', p + ' (' + stat.size + ' bytes)');
+      const runtimeConfig = parseJsonFile(configPath);
+      const baseUrl = directBaseUrl(runtimeConfig);
+      if (baseUrl) {
+        if (baseUrl.includes('127.0.0.1:' + targetPort) || baseUrl.includes('localhost:' + targetPort)) {
+          ok(runtimeName + ' baseUrl points to proxy', baseUrl);
+        } else if (baseUrl.includes('127.0.0.1') || baseUrl.includes('localhost')) {
+          info(runtimeName + ' baseUrl: ' + baseUrl + ' (custom local port -- make sure proxy is on that port)');
+        } else {
+          fail(runtimeName + ' baseUrl is NOT pointing to the proxy', baseUrl);
+          info('Change the Anthropic-compatible baseUrl to "http://127.0.0.1:' + targetPort + '" in ' + configPath);
+          info('Then restart the ' + runtimeName + ' gateway/runtime.');
+          info('');
+          if (exactDefaultPortMessage) info(exactDefaultPortMessage);
+          info('If you intentionally use a separate provider for the proxy, this FAIL can be ignored.');
+        }
       } else {
-        fail('Credentials file exists but has no OAuth token', p);
-        info('File contains: ' + Object.keys(parsed).join(', '));
-        info('Run: claude auth login (use browser OAuth, not API key)');
+        fail('No baseUrl found in ' + runtimeName + ' config', runtimeName + ' may be using the default Anthropic API directly');
+        info('Add or update the Anthropic-compatible provider baseUrl in ' + configPath + ':');
+        info('  "baseUrl": "http://127.0.0.1:' + targetPort + '"');
+        info('Then restart the ' + runtimeName + ' gateway/runtime.');
+        info('If you intentionally use a separate provider for the proxy, this FAIL can be ignored.');
       }
     } catch (e) {
-      fail('Credentials file exists but invalid JSON', p + ' -- ' + e.message);
+      info('Found ' + configPath + ' but failed to parse: ' + e.message);
     }
     break;
   }
-}
-
-// macOS Keychain fallback
-if (!credsPath && process.platform === 'darwin') {
-  info('No credential files found. Checking macOS Keychain...');
-  const { execSync } = require('child_process');
-  const keychainNames = ['Claude Code-credentials', 'claude-code', 'claude', 'com.anthropic.claude-code'];
-  for (const svc of keychainNames) {
-    try {
-      const token = execSync('security find-generic-password -s "' + svc + '" -w 2>/dev/null', { encoding: 'utf8' }).trim();
-      if (token) {
-        ok('Token found in macOS Keychain', 'service: ' + svc);
-        try {
-          creds = JSON.parse(token);
-        } catch(e) {
-          if (token.startsWith('sk-ant-')) {
-            creds = { claudeAiOauth: { accessToken: token, expiresAt: Date.now() + 86400000, subscriptionType: 'unknown' } };
-            info('Raw token extracted (not full JSON structure)');
-          }
-        }
-        if (creds && creds.claudeAiOauth) {
-          credsPath = path.join(homeDir, '.claude', '.credentials.json');
-          info('To make this permanent, run: node setup.js');
-          info('Setup will extract the Keychain token to a file for the proxy');
-        }
-        break;
-      }
-    } catch(e) { /* not found */ }
-  }
-  if (!creds) {
-    fail('Token not found in macOS Keychain either');
-  }
-}
-
-if (!credsPath || !creds) {
-  if (!creds) fail('No credentials found anywhere');
-  info('');
-  info('Searched files: ' + credsPaths.join(', '));
-  if (process.platform === 'darwin') {
-    info('Searched Keychain: Claude Code-credentials, claude-code, claude, com.anthropic.claude-code');
-  }
-  info('');
-  info('To fix:');
-  info('  npm install -g @anthropic-ai/claude-code');
-  info('  claude auth login');
-  info('  claude -p "test" --max-turns 1 --no-session-persistence   (forces credential write)');
-  info('');
-  info('Then run: node setup.js   (auto-extracts Keychain tokens on Mac)');
-  console.log('\nCannot continue without credentials. Fix this first.\n');
-  process.exit(1);
-}
-
-// ─── Step 2: Check token validity ───────────────────────────────────────────
-console.log('\n2. Checking token...\n');
-
-const oauth = creds.claudeAiOauth;
-const token = oauth.accessToken;
-const expiresIn = (oauth.expiresAt - Date.now()) / 3600000;
-
-ok('Token prefix', token.substring(0, 20) + '...');
-ok('Subscription', oauth.subscriptionType || 'unknown');
-
-if (expiresIn > 0) {
-  ok('Token expiry', expiresIn.toFixed(1) + ' hours remaining');
-} else {
-  fail('Token EXPIRED', Math.abs(expiresIn).toFixed(1) + ' hours ago');
-  info('Run: claude auth login (to refresh)');
-  info('Or open Claude Code CLI briefly -- it auto-refreshes');
-}
-
-// ─── Step 3: Test API connectivity ──────────────────────────────────────────
-console.log('\n3. Testing API connectivity...\n');
-
-function apiTest(name, body, headers) {
-  return new Promise((resolve) => {
-    const bodyStr = JSON.stringify(body);
-    const h = Object.assign({
-      'content-type': 'application/json',
-      'authorization': 'Bearer ' + token,
-      'anthropic-version': '2023-06-01',
-      'anthropic-beta': 'claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24',
-      'content-length': Buffer.byteLength(bodyStr),
-      'accept-encoding': 'identity'
-    }, headers || {});
-
-    const req = https.request({
-      hostname: 'api.anthropic.com', port: 443,
-      path: '/v1/messages', method: 'POST', headers: h
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => data += c);
-      res.on('end', () => {
-        const overage = res.headers['anthropic-ratelimit-unified-overage-status'] || 'missing';
-        resolve({ status: res.statusCode, overage: overage, body: data });
-      });
-    });
-    req.on('error', (e) => resolve({ status: 0, error: e.message }));
-    req.write(bodyStr);
-    req.end();
-  });
+  return found;
 }
 
 async function runTests() {
-  // Test 3a: Raw API connectivity (no billing header)
-  const raw = await apiTest('raw', {
+  let config;
+  try {
+    config = loadConfig({ argv: process.argv.slice(2), env: process.env, cwd: process.cwd(), homeDir });
+  } catch (e) {
+    console.log('\n1. Loading gateway configuration...\n');
+    fail('Config load failed', e.message);
+    printSummary();
+    process.exit(1);
+  }
+
+  const profileId = config.defaultProfile;
+  const activeProfile = config.profiles[profileId];
+  const sets = activeProfile.compatibilitySets || [];
+
+  console.log('\n1. Checking Claude Code credentials...\n');
+  const tokenCheck = checkSelectedProfileToken(config, { profileId, env: process.env, logger: console });
+  if (!tokenCheck.ok) {
+    fail('Selected profile credentials failed', tokenCheck.error);
+    info('');
+    info('Profile: ' + profileId);
+    info('Credentials: ' + (activeProfile.credentialsPath || activeProfile.tokenEnv || 'none'));
+    info('');
+    info('To fix:');
+    info('  npm install -g @anthropic-ai/claude-code');
+    info('  claude auth login');
+    info('  claude -p "test" --max-turns 1 --no-session-persistence   (forces credential write)');
+    info('');
+    info('Then run: node setup.js --profile ' + profileId + '   (auto-extracts Keychain tokens on Mac)');
+    console.log('\nCannot continue without credentials. Fix this first.\n');
+    printSummary();
+    process.exit(1);
+  }
+
+  ok('Credentials found', 'profile=' + profileId + ', source=' + (activeProfile.credentialsPath || activeProfile.tokenEnv || 'env'));
+  ok('Compatibility sets', sets.length ? sets.join(', ') : 'none');
+
+  console.log('\n2. Checking token...\n');
+  ok('Subscription', tokenCheck.detail.subscriptionType);
+  if (tokenCheck.detail.expiresInHours > 0) {
+    ok('Token expiry', tokenCheck.detail.expiresText);
+  } else if (isFinite(tokenCheck.detail.expiresInHours)) {
+    fail('Token EXPIRED', Math.abs(tokenCheck.detail.expiresInHours).toFixed(1) + ' hours ago');
+    info('Run: claude auth login (to refresh)');
+    info('Or open Claude Code CLI briefly -- it auto-refreshes');
+  } else {
+    ok('Token expiry', 'n/a');
+  }
+
+  const token = tokenCheck.token.accessToken;
+
+  console.log('\n3. Testing API connectivity...\n');
+  const raw = await apiTest(token, {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 8,
     messages: [{ role: 'user', content: 'Say OK' }]
@@ -191,10 +146,8 @@ async function runTests() {
     try { info('Error: ' + JSON.parse(raw.body).error.message); } catch(e) {}
   }
 
-  // Test 3b: With billing header (Haiku)
   console.log('\n4. Testing billing header (Haiku)...\n');
-
-  const billing = await apiTest('billing-haiku', {
+  const billing = await apiTest(token, {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 8,
     system: [
@@ -220,10 +173,8 @@ async function runTests() {
     info('Run the capture proxy to get YOUR billing header (see README)');
   }
 
-  // Test 3c: With billing header (Sonnet)
   console.log('\n5. Testing billing header (Sonnet)...\n');
-
-  const sonnet = await apiTest('billing-sonnet', {
+  const sonnet = await apiTest(token, {
     model: 'claude-sonnet-4-6',
     max_tokens: 8,
     system: [
@@ -243,10 +194,8 @@ async function runTests() {
     try { info('Error: ' + JSON.parse(sonnet.body).error.message); } catch(e) {}
   }
 
-  // Test 3d: With "OpenClaw" in body (should fail without sanitization)
   console.log('\n6. Testing trigger phrase detection...\n');
-
-  const trigger = await apiTest('trigger-test', {
+  const trigger = await apiTest(token, {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 8,
     system: [
@@ -258,71 +207,37 @@ async function runTests() {
 
   if (trigger.status === 400) {
     ok('Trigger detection confirmed', '"running inside OpenClaw" correctly triggers rejection');
-    info('This is expected -- the proxy sanitizes this phrase');
+    info('This is expected -- the proxy sanitizes this phrase when the OpenClaw set is enabled');
   } else if (trigger.status === 200) {
     info('Trigger phrase was NOT detected (unexpected) -- detection may have changed');
   }
 
-  // Test 3e: Check if proxy is running
   console.log('\n7. Checking proxy...\n');
-
-  const proxyCheck = await new Promise((resolve) => {
-    const req = http.request({
-      hostname: '127.0.0.1', port: 18801,
-      path: '/health', method: 'GET'
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => data += c);
-      res.on('end', () => resolve({ status: res.statusCode, body: data }));
-    });
-    req.on('error', (e) => resolve({ status: 0, error: e.message }));
-    req.end();
-  });
-
+  const proxyCheck = await requestProxyHealth(config);
   if (proxyCheck.status === 200) {
     try {
       const health = JSON.parse(proxyCheck.body);
       const patternCount = health.replacementPatterns || (health.layers && health.layers.stringReplacements) || '?';
-      ok('Proxy running', 'Port 18801, ' + health.requestsServed + ' requests served, ' + patternCount + ' patterns');
+      ok('Proxy running', 'Port ' + config.port + ', ' + health.requestsServed + ' requests served, ' + patternCount + ' patterns');
+      if (health.compatibilitySets) ok('Proxy compatibility sets', health.compatibilitySets.join(', ') || 'none');
       if (health.tokenExpiresInHours && parseFloat(health.tokenExpiresInHours) <= 0) {
         fail('Proxy token expired', 'Run: claude auth login');
       }
     } catch(e) {
-      ok('Proxy running', 'Port 18801');
+      ok('Proxy running', 'Port ' + config.port);
     }
   } else {
-    fail('Proxy not running on port 18801', proxyCheck.error || 'Status ' + proxyCheck.status);
-    info('Start it with: node proxy.js');
+    fail('Proxy not running on port ' + config.port, proxyCheck.error || 'Status ' + proxyCheck.status);
+    info('Start it with: node proxy.js --profile ' + profileId);
   }
 
-  // Test 3f: Send a test request through the proxy
   if (proxyCheck.status === 200) {
     console.log('\n8. Testing end-to-end through proxy...\n');
-
-    const e2e = await new Promise((resolve) => {
-      const body = JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 8,
-        system: 'You are a personal assistant running inside OpenClaw. Test with sessions_spawn and sessions_yield.',
-        messages: [{ role: 'user', content: 'Say E2E_OK' }]
-      });
-      const req = http.request({
-        hostname: '127.0.0.1', port: 18801,
-        path: '/v1/messages', method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'anthropic-version': '2023-06-01',
-          'authorization': 'Bearer dummy-proxy-will-replace',
-          'content-length': Buffer.byteLength(body)
-        }
-      }, (res) => {
-        let data = '';
-        res.on('data', (c) => data += c);
-        res.on('end', () => resolve({ status: res.statusCode, body: data }));
-      });
-      req.on('error', (e) => resolve({ status: 0, error: e.message }));
-      req.write(body);
-      req.end();
+    const e2e = await requestProxyMessage(config, {
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 8,
+      system: 'You are a personal assistant running inside OpenClaw. Test with sessions_spawn and sessions_yield.',
+      messages: [{ role: 'user', content: 'Say E2E_OK' }]
     });
 
     if (e2e.status === 200) {
@@ -336,8 +251,8 @@ async function runTests() {
           if (err.error.message.includes('extra usage') || err.error.message.includes('Third-party')) {
             info('');
             info('The proxy is not fully sanitizing your request body.');
-            info('Your OpenClaw version may have additional trigger terms.');
-            info('Add more patterns to config.json replacements array.');
+            info('Your runtime version may have additional trigger terms.');
+            info('Enable the right compatibility set or add more patterns to config.json replacements array.');
             info('See README for troubleshooting guidance.');
           }
         }
@@ -347,67 +262,45 @@ async function runTests() {
     }
   }
 
-  // ─── 9. OpenClaw Configuration Check ───────────────────────────────────────
-  console.log('\n9. Checking OpenClaw configuration...\n');
-
-  const ocConfigPaths = [
-    path.join(os.homedir(), '.openclaw', 'openclaw.json'),
-    path.join(os.homedir(), '.openclaw', 'config.json')
-  ];
-
-  let ocConfigFound = false;
-  for (const ocPath of ocConfigPaths) {
-    if (fs.existsSync(ocPath)) {
-      try {
-        const ocRaw = fs.readFileSync(ocPath, 'utf8');
-        const ocConfig = JSON.parse(ocRaw.charCodeAt(0) === 0xFEFF ? ocRaw.slice(1) : ocRaw);
-        ocConfigFound = true;
-
-        const baseUrl = ocConfig.models &&
-          ocConfig.models.providers &&
-          ocConfig.models.providers.anthropic &&
-          ocConfig.models.providers.anthropic.baseUrl;
-
-        if (baseUrl) {
-          if (baseUrl.includes('127.0.0.1:18801') || baseUrl.includes('localhost:18801')) {
-            ok('OpenClaw baseUrl points to proxy', baseUrl);
-          } else if (baseUrl.includes('127.0.0.1') || baseUrl.includes('localhost')) {
-            info('OpenClaw baseUrl: ' + baseUrl + ' (custom port -- make sure proxy is on that port)');
-          } else {
-            fail('OpenClaw baseUrl is NOT pointing to the proxy', baseUrl);
-            info('Change models.providers.anthropic.baseUrl to "http://127.0.0.1:18801" in ' + ocPath);
-            info('Then restart the OpenClaw gateway.');
-            info('');
-            info('Note: ANTHROPIC_BASE_URL env var does NOT control OpenClaw routing.');
-            info('You must set baseUrl in openclaw.json under models.providers.anthropic.');
-            info('If you intentionally use a separate provider for the proxy, this FAIL can be ignored.');
-          }
-        } else {
-          fail('No baseUrl found in OpenClaw config', 'OpenClaw is using the default Anthropic API directly');
-          info('Add this to ' + ocPath + ':');
-          info('  "models": { "providers": { "anthropic": { "baseUrl": "http://127.0.0.1:18801" } } }');
-          info('Then restart the OpenClaw gateway.');
-          info('If you intentionally use a separate provider for the proxy, this FAIL can be ignored.');
-        }
-      } catch(e) {
-        info('Found ' + ocPath + ' but failed to parse: ' + e.message);
-      }
-      break;
+  console.log('\n9. Checking runtime client configuration...\n');
+  if (sets.includes('openclaw')) {
+    const foundOpenClaw = checkBaseUrl('OpenClaw', [
+      path.join(homeDir, '.openclaw', 'openclaw.json'),
+      path.join(homeDir, '.openclaw', 'config.json')
+    ], config.port, 'Note: ANTHROPIC_BASE_URL env var does NOT control OpenClaw routing. You must set baseUrl in openclaw.json under models.providers.anthropic.');
+    if (!foundOpenClaw) {
+      info('OpenClaw config not found at ~/.openclaw/openclaw.json');
+      info('(This check only works if OpenClaw is installed on this machine)');
     }
   }
 
-  if (!ocConfigFound) {
-    info('OpenClaw config not found at ~/.openclaw/openclaw.json');
-    info('(This check only works if OpenClaw is installed on this machine)');
+  if (sets.includes('hermes-agent')) {
+    const foundHermes = checkBaseUrl('Hermes Agent', [
+      process.env.HERMES_AGENT_CONFIG,
+      path.join(homeDir, '.hermes-agent', 'config.json'),
+      path.join(homeDir, '.hermes-agent', 'hermes-agent.json'),
+      path.join(homeDir, '.hermes', 'hermes-agent.json')
+    ], config.port, null);
+    if (!foundHermes) {
+      info('Hermes Agent config not found in known paths');
+      info('Set HERMES_AGENT_CONFIG to check a custom Hermes Agent config path.');
+    }
   }
 
-  // ─── Summary ──────────────────────────────────────────────────────────────
+  if (!sets.includes('openclaw') && !sets.includes('hermes-agent')) {
+    info('No built-in runtime client config check for active sets: ' + (sets.join(', ') || 'none'));
+  }
+
+  printSummary();
+}
+
+function printSummary() {
   console.log('\n---------------------------------');
-  console.log('  Results: ' + passed + ' passed, ' + failed + ' failed');
+  console.log('  Results: ' + state.passed + ' passed, ' + state.failed + ' failed');
   console.log('---------------------------------\n');
 
-  if (failed === 0) {
-    console.log('  Everything looks good! If OpenClaw requests still fail,');
+  if (state.failed === 0) {
+    console.log('  Everything looks good! If runtime requests still fail,');
     console.log('  check the proxy console for 400 errors and add sanitization');
     console.log('  patterns to config.json for any trigger terms in your content.\n');
   } else {
@@ -415,4 +308,17 @@ async function runTests() {
   }
 }
 
-runTests();
+if (require.main === module) {
+  runTests().catch((e) => {
+    fail('Troubleshoot crashed', e.message);
+    printSummary();
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  runTests,
+  checkBaseUrl,
+  directBaseUrl,
+  nestedBaseUrl
+};

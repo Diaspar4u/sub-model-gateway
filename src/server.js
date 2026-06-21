@@ -64,6 +64,7 @@ function createGatewayServer(config, options = {}) {
           subscriptionType: tokenInfo.subscriptionType,
           activeProfile: config.defaultProfile,
           profiles: Object.keys(config.profiles),
+          compatibilitySets: config.activeProfile.compatibilitySets,
           layers: {
             stringReplacements: config.activeProfile.replacements.length,
             toolNameRenames: config.activeProfile.toolRenames.length,
@@ -218,6 +219,7 @@ function startServer(config, options = {}) {
       logger.log(`  Bind address:      ${config.bindHost}`);
       logger.log(`  Emulating:         Claude Code v${CC_VERSION}`);
       logger.log(`  Profile:           ${config.defaultProfile}`);
+      logger.log(`  Compatibility:     ${(profile.compatibilitySets || []).join(', ') || 'none'}`);
       logger.log(`  Subscription:      ${oauth.subscriptionType}`);
       logger.log(`  Token expires:     ${h}`);
       logger.log(`  String patterns:   ${profile.replacements.length} sanitize + ${profile.reverseMap.length} reverse`);

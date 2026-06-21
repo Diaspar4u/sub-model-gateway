@@ -1,7 +1,18 @@
 {
-  "_comment": "Sanitized runtime compatibility template copied from the current local deployment. Copy to config.json and edit for the runtime you are routing.",
+  "_comment": "Sanitized Hermes Agent compatibility template copied from the current local deployment. Copy to config.json and edit for the runtime you are routing.",
   "port": 18801,
+  "profile": "hermes",
   "credentialsPath": "~/.claude/.credentials.json",
+  "compatibilitySets": [
+    "openclaw",
+    "hermes-agent"
+  ],
+  "routing": {
+    "type": "profile"
+  },
+  "profiles": {
+    "hermes": {}
+  },
   "stripSystemConfig": false,
   "replacements": [
     [

@@ -84,6 +84,56 @@ test('profile credentialsPath overrides legacy OAUTH_TOKEN root default', () => 
   assert.strictEqual(config.profiles.envProfile.tokenEnv, 'OAUTH_TOKEN');
 });
 
+test('compatibilitySets can select Hermes Agent rules per profile', () => {
+  const dir = tempConfig({
+    profile: 'hermes',
+    compatibilitySets: ['openclaw'],
+    profiles: {
+      hermes: {
+        compatibilitySets: ['hermes-agent']
+      }
+    }
+  });
+
+  const config = loadConfig({
+    cwd: dir,
+    homeDir: '/home/tester',
+    env: { OAUTH_TOKEN: 'sk-env' }
+  });
+
+  assert.deepStrictEqual(config.activeProfile.compatibilitySets, ['hermes-agent']);
+  assert.ok(config.activeProfile.replacements.some(([from, to]) => from === 'Hermes' && to === 'AssistantRuntime'));
+  assert.ok(config.activeProfile.toolRenames.some(([from, to]) => from === 'mcp_delegate_task' && to === 'mcp_SubagentRun'));
+  assert.strictEqual(config.activeProfile.stripSystemConfig, false);
+  assert.ok(!config.activeProfile.replacements.some(([from]) => from === 'OpenClaw'));
+});
+
+test('compatibilitySets can combine or disable built-in rule sets', () => {
+  const combinedDir = tempConfig({
+    compatibilitySets: ['openclaw', 'hermes-agent']
+  });
+  const combined = loadConfig({
+    cwd: combinedDir,
+    homeDir: '/home/tester',
+    env: { OAUTH_TOKEN: 'sk-env' }
+  });
+  assert.ok(combined.activeProfile.replacements.some(([from]) => from === 'OpenClaw'));
+  assert.ok(combined.activeProfile.replacements.some(([from]) => from === 'Hermes'));
+
+  const disabledDir = tempConfig({
+    compatibilitySets: [],
+    replacements: [['CustomRuntime', 'RuntimeCLI']]
+  });
+  const disabled = loadConfig({
+    cwd: disabledDir,
+    homeDir: '/home/tester',
+    env: { OAUTH_TOKEN: 'sk-env' }
+  });
+  assert.deepStrictEqual(disabled.activeProfile.compatibilitySets, []);
+  assert.deepStrictEqual(disabled.activeProfile.replacements, [['CustomRuntime', 'RuntimeCLI']]);
+  assert.deepStrictEqual(disabled.activeProfile.toolRenames, []);
+});
+
 test('selectProfile supports default, header, and client-token routing', () => {
   const base = {
     defaultProfile: 'runtime',
