@@ -8,7 +8,7 @@ OpenClaw defaults plus local custom arrays.
 Built-in sets:
 
 - `openclaw`: original OpenClaw request/response compatibility rules.
-- `hermes-agent`: Hermes Agent rules added after the original OpenClaw set.
+- `hermes`: Hermes Agent rules added after the original OpenClaw set.
 
 Profiles select sets with `compatibilitySets`:
 
@@ -21,7 +21,7 @@ Profiles select sets with `compatibilitySets`:
     },
     "hermes": {
       "credentialsPath": "~/.claude/hermes.credentials.json",
-      "compatibilitySets": ["hermes-agent"]
+      "compatibilitySets": ["hermes"]
     }
   }
 }
@@ -31,7 +31,7 @@ Use both sets when a runtime needs both rule families:
 
 ```json
 {
-  "compatibilitySets": ["openclaw", "hermes-agent"]
+  "compatibilitySets": ["openclaw", "hermes"]
 }
 ```
 
@@ -52,7 +52,7 @@ manual-only behavior.
 ## Script Behavior
 
 - `setup.js` generates profile-shaped config and supports `--set openclaw`,
-  `--set hermes-agent`, repeated/comma sets, and `--no-sets`.
+  `--set hermes`, repeated/comma sets, and `--no-sets`.
 - `troubleshoot.js` loads the same selected profile as `proxy.js`.
 - Runtime config checks are set-aware: OpenClaw checks run when `openclaw` is
-  active; Hermes Agent checks run when `hermes-agent` is active.
+  active; Hermes Agent checks run when `hermes` is active.

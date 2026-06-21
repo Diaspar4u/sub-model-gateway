@@ -234,7 +234,7 @@ function main() {
 
   console.log('\n2. Finding runtime configuration...');
   const openClawEnabled = compatibilitySets.includes('openclaw');
-  const hermesEnabled = compatibilitySets.includes('hermes-agent');
+  const hermesEnabled = compatibilitySets.includes('hermes');
   const runtimePath = openClawEnabled ? findRuntimeConfig(homeDir) : null;
   const hermesPath = hermesEnabled ? findHermesConfig(homeDir) : null;
   let runtimeConfig = null;
@@ -277,7 +277,7 @@ function main() {
   }
 
   if (hermesEnabled) {
-    console.log('   Hermes Agent set enabled; using built-in hermes-agent compatibility rules');
+    console.log('   Hermes set enabled; using built-in Hermes compatibility rules');
   }
 
   console.log('\n4. Generating configuration...');

@@ -90,7 +90,7 @@ test('compatibilitySets can select Hermes Agent rules per profile', () => {
     compatibilitySets: ['openclaw'],
     profiles: {
       hermes: {
-        compatibilitySets: ['hermes-agent']
+        compatibilitySets: ['hermes']
       }
     }
   });
@@ -101,7 +101,7 @@ test('compatibilitySets can select Hermes Agent rules per profile', () => {
     env: { OAUTH_TOKEN: 'sk-env' }
   });
 
-  assert.deepStrictEqual(config.activeProfile.compatibilitySets, ['hermes-agent']);
+  assert.deepStrictEqual(config.activeProfile.compatibilitySets, ['hermes']);
   assert.ok(config.activeProfile.replacements.some(([from, to]) => from === 'Hermes' && to === 'AssistantRuntime'));
   assert.ok(config.activeProfile.toolRenames.some(([from, to]) => from === 'mcp_delegate_task' && to === 'mcp_SubagentRun'));
   assert.strictEqual(config.activeProfile.stripSystemConfig, false);
@@ -110,7 +110,7 @@ test('compatibilitySets can select Hermes Agent rules per profile', () => {
 
 test('compatibilitySets can combine or disable built-in rule sets', () => {
   const combinedDir = tempConfig({
-    compatibilitySets: ['openclaw', 'hermes-agent']
+    compatibilitySets: ['openclaw', 'hermes']
   });
   const combined = loadConfig({
     cwd: combinedDir,

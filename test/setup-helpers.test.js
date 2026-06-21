@@ -12,12 +12,12 @@ test('buildSetupConfig writes profile-shaped config with selected sets', () => {
   const config = buildSetupConfig({
     profile: 'hermes',
     credentialsPath: '/tmp/hermes.credentials.json',
-    compatibilitySets: ['hermes-agent']
+    compatibilitySets: ['hermes']
   });
 
   assert.strictEqual(config.profile, 'hermes');
   assert.strictEqual(config.credentialsPath, '/tmp/hermes.credentials.json');
-  assert.deepStrictEqual(config.compatibilitySets, ['hermes-agent']);
+  assert.deepStrictEqual(config.compatibilitySets, ['hermes']);
   assert.deepStrictEqual(Object.keys(config.profiles), ['hermes']);
   assert.strictEqual(config.routing.type, 'profile');
 });

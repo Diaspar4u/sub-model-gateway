@@ -191,7 +191,7 @@ function buildSetupConfig(options = {}) {
       [profile]: {}
     },
     _comment: 'Root fields are defaults for profiles. Add profiles.<name>.credentialsPath and routing.type=\"clientToken\" for multiple subscriptions.',
-    _comment_sets: 'Set compatibilitySets to [\"openclaw\"], [\"hermes-agent\"], both, or [] to control runtime compatibility rules.',
+    _comment_sets: 'Set compatibilitySets to [\"openclaw\"], [\"hermes\"], both, or [] to control runtime compatibility rules.',
     _comment_patterns: 'Pattern arrays use src/constants.js defaults. Add custom replacements/reverseMap/toolRenames/propRenames at the root or profile level and they will be merged with defaults.'
   };
 }

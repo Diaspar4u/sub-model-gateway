@@ -274,7 +274,7 @@ async function runTests() {
     }
   }
 
-  if (sets.includes('hermes-agent')) {
+  if (sets.includes('hermes')) {
     const foundHermes = checkBaseUrl('Hermes Agent', [
       process.env.HERMES_AGENT_CONFIG,
       path.join(homeDir, '.hermes-agent', 'config.json'),
@@ -287,7 +287,7 @@ async function runTests() {
     }
   }
 
-  if (!sets.includes('openclaw') && !sets.includes('hermes-agent')) {
+  if (!sets.includes('openclaw') && !sets.includes('hermes')) {
     info('No built-in runtime client config check for active sets: ' + (sets.join(', ') || 'none'));
   }
 

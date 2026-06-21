@@ -10,7 +10,7 @@ const {
 // The Hermes rules were originally carried as the runtime template. Keep that
 // template as the source for this extraction so the added Hermes mappings do
 // not drift while we make sets first-class.
-const HERMES_AGENT_TEMPLATE = require('../config.runtime.example.json');
+const HERMES_TEMPLATE = require('../config.runtime.example.json');
 
 const COMPATIBILITY_SETS = {
   openclaw: {
@@ -21,14 +21,14 @@ const COMPATIBILITY_SETS = {
     propRenames: DEFAULT_PROP_RENAMES,
     options: {}
   },
-  'hermes-agent': {
+  hermes: {
     description: 'Hermes Agent runtime compatibility rules.',
-    replacements: HERMES_AGENT_TEMPLATE.replacements || [],
-    reverseMap: HERMES_AGENT_TEMPLATE.reverseMap || [],
-    toolRenames: HERMES_AGENT_TEMPLATE.toolRenames || [],
-    propRenames: HERMES_AGENT_TEMPLATE.propRenames || [],
+    replacements: HERMES_TEMPLATE.replacements || [],
+    reverseMap: HERMES_TEMPLATE.reverseMap || [],
+    toolRenames: HERMES_TEMPLATE.toolRenames || [],
+    propRenames: HERMES_TEMPLATE.propRenames || [],
     options: {
-      stripSystemConfig: HERMES_AGENT_TEMPLATE.stripSystemConfig
+      stripSystemConfig: HERMES_TEMPLATE.stripSystemConfig
     }
   }
 };

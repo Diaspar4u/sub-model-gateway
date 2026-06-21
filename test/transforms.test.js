@@ -228,7 +228,7 @@ test('processBody supports explicit Hermes Agent compatibility set', () => {
     tools: [{ name: 'mcp_delegate_task', description: 'Run Hermes subagent' }],
     messages: [{ role: 'user', content: 'Ask Hermes to delegate_task' }]
   }), {
-    compatibilitySets: ['hermes-agent'],
+    compatibilitySets: ['hermes'],
     stripToolDescriptions: false
   }, {
     identity: { deviceId: 'd', sessionId: 's' },

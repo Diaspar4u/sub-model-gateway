@@ -5,7 +5,7 @@
   "credentialsPath": "~/.claude/.credentials.json",
   "compatibilitySets": [
     "openclaw",
-    "hermes-agent"
+    "hermes"
   ],
   "routing": {
     "type": "profile"
