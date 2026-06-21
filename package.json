@@ -1,0 +1,10 @@
+{
+  "name": "sub-model-gateway",
+  "version": "2.2.3",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node --check proxy.js && node --check src/*.js && node --check setup.js && node --check troubleshoot.js"
+  }
+}

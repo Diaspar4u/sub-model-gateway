@@ -1,0 +1,13 @@
+{
+  "type": "error",
+  "error": {
+    "type": "invalid_request_error",
+    "message": "OCPlatform request failed",
+    "tool": {
+      "name": "mcp_Bash",
+      "input": {
+        "thread_id": "thread-1"
+      }
+    }
+  }
+}

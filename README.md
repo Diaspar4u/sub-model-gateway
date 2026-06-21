@@ -222,7 +222,7 @@ pm2 save
 
 ## Token Refresh
 
-Claude Code's OAuth token expires every ~24 hours. The proxy reads the token fresh from disk on each request. To refresh:
+Claude Code's OAuth token expires every ~24 hours. The proxy caches the active profile token in memory and refreshes it when it is expired or within 5 minutes of expiry. Refreshed file-based tokens are written back to the profile credential file when that file is writable. To refresh manually:
 
 - **Easiest**: Open Claude Code CLI briefly -- it auto-refreshes on startup
 - **Automated**: Set up a cron that runs `claude -p "ping" --max-turns 1 --no-session-persistence` daily (triggers auth refresh)
@@ -322,7 +322,7 @@ This tests 8 layers independently (credentials, token, API, billing header, trig
 
 **Empty credentials file on Mac / Keychain credentials**
 - Newer Claude Code versions store tokens in macOS Keychain instead of a file
-- The proxy checks these Keychain service names: `Claude Code-credentials`, `claude-code`, `claude`, `com.anthropic.claude-code`
+- Runtime startup expects a credential file or `OAUTH_TOKEN`; use setup to extract Keychain credentials into a file
 - Check manually: `security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null`
 - Run `node setup.js` to auto-extract the Keychain token to `~/.claude/.credentials.json`
 - Run `claude -p "test" --max-turns 1` to force credential write if Keychain is also empty
